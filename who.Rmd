@@ -1,0 +1,266 @@
+---
+title: "Who Immunization 2016"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+DATA_DIR <- "~/GitHub/who-immunization-2016/data/"
+file_global_regional_coverage <- str_c(DATA_DIR, "global_regional_coverage.csv")
+file_stamen <- str_c(DATA_DIR, "Stamen20171121-revised.csv")
+file_weunic <- str_c(DATA_DIR, "wuenic_master_07_06_2017.csv")
+file_subnational <- str_c(DATA_DIR, "subnational_06_29_2017.csv")
+```
+
+```{r}
+global_regional_coverage <- read_csv(file_global_regional_coverage)
+stamen <- read_csv(file_stamen)
+weunic <- read_csv(file_weunic)
+subnational <- read_csv(file_subnational)
+```
+
+```{r}
+summary(global_regional_coverage)
+```
+
+```{r}
+global_regional_coverage %>% 
+  rename_all(str_to_lower) %>% 
+  filter(group == "Global") %>% 
+  ggplot() +
+  geom_line(aes(year, vaccinated, color = vaccine))
+```
+
+The raw data shows the number of vaccinations going up across all vaccines. I wonder what this looks like as a proportion of the target number.
+
+```{r}
+global_regional_coverage %>% 
+  rename_all(str_to_lower) %>% 
+  mutate(prop_vaccinated = vaccinated / target) %>% 
+  filter(group == "Global") %>% 
+  ggplot() +
+  geom_line(aes(year, prop_vaccinated, color = vaccine))
+```
+
+Almost identical!
+
+```{r}
+percent_labeller <- function(vals) if_else(vals == 100, str_c(vals, "%"), str_c(vals))
+
+global_regional_coverage %>% 
+  rename_all(str_to_lower) %>% 
+  filter(
+    group == "Global",
+    vaccine %in% c("mcv1", "mcv2"),
+    year >= 2000
+  ) %>% 
+  ggplot() +
+  geom_line(aes(year, coverage, color = vaccine), size = 0.8) +
+  geom_hline(yintercept = 90, color = "#367cc1", size = 0.8) +
+  geom_text(
+    x = 2008, 
+    y = 93, 
+    hjust = 0.5, 
+    label = "90% Vaccination Target", 
+    color = "#367cc1"
+  ) +
+  scale_x_continuous(
+    breaks = seq(2000, 2016, by = 2)
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 100, by = 20),
+    limits = c(0, 100),
+    labels = percent_labeller
+  ) +
+  scale_color_manual(
+    values = c("mcv1" = "#69bcd1", "mcv2" = "#d13f3e"),
+    labels = str_to_upper
+  ) +
+  theme_minimal() +
+  theme(
+    legend.justification = c("right", "top"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.background = element_rect(color = "grey60"),
+    panel.grid.minor.y = element_line(color = "grey60", size = 0.2),
+    panel.grid.major.y = element_line(color = "grey60", size = 0.2)
+  ) +
+  labs(
+    x = NULL,
+    y = "Coverage",
+    color = NULL,
+    title = "Global MCV1 and MCV2 Coverage"
+  )
+```
+
+```{r}
+knitr::include_graphics("globalmcv.png")
+```
+
+
+## Weunic data
+```{r}
+weunic %>% 
+  rename_all(str_to_lower) %>%
+  filter(year == 2016, vaccine == "dtp1") 
+  transmute(
+    country,
+    administrativecoverage,
+    childrenunvaccinated = (childrenintarget - childrenvaccinated)
+  )
+```
+
+## Subnational
+
+```{r}
+x_trans_trans <- function(x) {
+  scales::trans_new(
+    "x_trans", 
+    function(x) case_when(x <= 100 ~ x, x <= 1000 ~ 93.5 + (x/15), TRUE ~ 160), 
+    function(x) if_else(x <= 100, x, 3*x))
+}
+
+function(x)
+  case_when(
+    x <= 10 ~ 0,
+    
+  )
+
+subnational %>% 
+  filter(
+    annum == 2016, 
+    Vaccode == "DTP3"
+  ) %>% 
+  mutate(
+    color = case_when(
+      Coverage <= 60 ~ "0 to 60%",
+      Coverage <= 70 ~ "60% to 70%",
+      Coverage <= 80 ~ "70% to 80%",
+      Coverage <= 90 ~ "80% to 90%",
+      Coverage <= 95 ~ "90% to 95%",
+      Coverage <= 100 ~ "90% to 100%",
+      TRUE ~ ">100%"
+    )
+  ) %>% 
+  filter(
+    Coverage <= 1000 || Denominator <= 2000
+  ) %>% 
+  ggplot(aes(Coverage, Denominator, size = Denominator, fill = color)) +
+  geom_point(shape = 21, color = "white") +
+  scale_x_continuous(
+    trans = "x_trans",
+    breaks = c(seq(0, 100, by = 10), 500, 700, 1000)
+  ) +
+  scale_y_continuous(
+    trans = "sqrt",
+    breaks = c(10, 500, 2000, 5000, 10000, 15000, seq(20000, 60000, by = 10000), 80000, 100000, 150000, seq(200000, 500000, by = 100000))
+  ) +
+  scale_size(
+    range = c(1, 10),
+    breaks = c(1, 10, 100, 1000, 10000, 100000, 300000)
+  )
+```
+
+## Trends in DTP3 by country
+```{r}
+glimpse(weunic)
+```
+
+```{r}
+countries_of_interest <- c(
+  "Pakistan",
+  "Syrian Arab Republic",
+  "Yemen",
+  "Iraq",
+  "Mali",
+  "Afghanistan",
+  "Haiti",
+  "Ethiopia",
+  "Democratic Republic of the Congo",
+  "Nigeria",
+  "Somalia"
+)
+
+data <- 
+  weunic %>% 
+  rename_all(str_to_lower) %>% 
+  filter(
+    year %in% c(2010, 2016), 
+    vaccine == "dtp3", 
+    country %in% countries_of_interest
+  ) %>% 
+  select(wuenic, year, country)
+
+data 
+
+data %>% 
+  ggplot() +
+  geom_point(aes(year, wuenic)) +
+  geom_segment(
+    aes(
+      y = `2010`,
+      yend = `2016`
+    ), 
+    x = 2010, 
+    xend = 2016, 
+    data = spread(data, year, wuenic)
+  ) +
+  geom_text(
+    aes(
+      y = wuenic,
+      label = wuenic
+    ),
+    x = 2009.5,
+    data = filter(data, year == 2010)
+  ) +
+  geom_text(
+    aes(
+      y = wuenic,
+      label = country
+    ),
+    x = 2009,
+    hjust = 1,
+    data = filter(data, year == 2010)
+  ) +
+  geom_text(
+    aes(
+      y = wuenic,
+      label = wuenic
+    ),
+    x = 2016.5,
+    data = filter(data, year == 2016)
+  ) +
+  geom_text(
+    aes(
+      y = wuenic,
+      label = country
+    ),
+    x = 2017,
+    hjust = 0,
+    data = filter(data, year == 2016)
+  ) +
+  scale_x_continuous(breaks = c(2010, 2016), limits = c(2000, 2026)) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Trends in DTPcv3 Coverage since\n2010 for Selected Countries"
+  )
+```
+
+* Nudge y aesthetic
+* Color?
+* X axis to the top
