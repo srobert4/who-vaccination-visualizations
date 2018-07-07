@@ -382,12 +382,24 @@ data %>%
     hjust = 0,
     data = filter(data, year == 2016)
   ) +
-  scale_x_continuous(breaks = c(2010, 2016), limits = c(2000, 2026)) +
+  scale_x_continuous(
+    breaks = c(2010, 2016), 
+    limits = c(2000, 2026),
+    position = "top"
+  ) +
   theme_minimal() +
   theme(
     panel.grid = element_blank(),
     axis.text.y = element_blank(),
-    plot.title = element_text(hjust = 0.5)
+    axis.text.x = element_text(
+      size = 16,
+      face = "bold"
+    ),
+    plot.title = element_text(
+      size = 16,
+      face = "bold",
+      hjust = 0.5
+    )
   ) +
   labs(
     x = NULL,
