@@ -105,19 +105,6 @@ global_regional_coverage %>%
 knitr::include_graphics("globalmcv.png")
 ```
 
-
-## Weunic data
-```{r}
-weunic %>% 
-  rename_all(str_to_lower) %>%
-  filter(year == 2016, vaccine == "dtp1") 
-  transmute(
-    country,
-    administrativecoverage,
-    childrenunvaccinated = (childrenintarget - childrenvaccinated)
-  )
-```
-
 ## Subnational
 
 ```{r}
@@ -127,12 +114,6 @@ x_trans_trans <- function(x) {
     function(x) case_when(x <= 100 ~ x, x <= 1000 ~ 93.5 + (x/15), TRUE ~ 160), 
     function(x) if_else(x <= 100, x, 3*x))
 }
-
-function(x)
-  case_when(
-    x <= 10 ~ 0,
-    
-  )
 
 subnational %>% 
   filter(
