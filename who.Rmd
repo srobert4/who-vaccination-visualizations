@@ -15,44 +15,19 @@ library(tidyverse)
 ```{r}
 DATA_DIR <- "~/GitHub/who-immunization-2016/data/"
 file_global_regional_coverage <- str_c(DATA_DIR, "global_regional_coverage.csv")
-file_stamen <- str_c(DATA_DIR, "Stamen20171121-revised.csv")
 file_weunic <- str_c(DATA_DIR, "wuenic_master_07_06_2017.csv")
 file_subnational <- str_c(DATA_DIR, "subnational_06_29_2017.csv")
 ```
 
 ```{r}
 global_regional_coverage <- read_csv(file_global_regional_coverage)
-stamen <- read_csv(file_stamen)
 weunic <- read_csv(file_weunic)
 subnational <- read_csv(file_subnational)
 ```
 
-```{r}
-summary(global_regional_coverage)
-```
+## Global Coverage
 
-```{r}
-global_regional_coverage %>% 
-  rename_all(str_to_lower) %>% 
-  filter(group == "Global") %>% 
-  ggplot() +
-  geom_line(aes(year, vaccinated, color = vaccine))
-```
-
-The raw data shows the number of vaccinations going up across all vaccines. I wonder what this looks like as a proportion of the target number.
-
-```{r}
-global_regional_coverage %>% 
-  rename_all(str_to_lower) %>% 
-  mutate(prop_vaccinated = vaccinated / target) %>% 
-  filter(group == "Global") %>% 
-  ggplot() +
-  geom_line(aes(year, prop_vaccinated, color = vaccine))
-```
-
-Almost identical!
-
-```{r}
+```{r, fig.asp = 0.6, out.width="100%"}
 percent_labeller <- function(vals) if_else(vals == 100, str_c(vals, "%"), str_c(vals))
 
 global_regional_coverage %>% 
@@ -105,20 +80,48 @@ global_regional_coverage %>%
 knitr::include_graphics("globalmcv.png")
 ```
 
-## Subnational
+## Subnational Coverage
 
-```{r}
+```{r fig.asp=1.2, out.width="100%"}
 x_trans_trans <- function(x) {
   scales::trans_new(
     "x_trans", 
-    function(x) case_when(x <= 100 ~ x, x <= 1000 ~ 93.5 + (x/15), TRUE ~ 160), 
-    function(x) if_else(x <= 100, x, 3*x))
+    function(x) if_else(x <= 100, x, 93.5 + (x/15)), 
+    function(x) if_else(x <= 100, x, (x - 93.5) * 15)
+  )
 }
+
+coverage_colors <- c(
+  "0 to 60%" = "#d5322f",
+  "60% to 70%" = "#f36d4a",
+  "70% to 80%" = "#fbad68",
+  "80% to 90%" = "#92cc64",
+  "90% to 95%" = "#6abc68",
+  "95% to 100%" = "#249752",
+  ">100%" = "#876086"
+)
+
+labelled <- c("Dhaka", "Lahore", "Karachi", "São Paulo")
+
+x_breaks <- c(seq(0, 100, by = 10), 400, 700, 1000)
+x_labs <- c(str_c(head(x_breaks, -1), "%"), ">1000%")
+
+y_breaks <- c(
+  10, 500, 2000, 5000, 10000, 15000, 
+  seq(20000, 60000, by = 10000), 
+  80000, 100000, 150000, 
+  seq(200000, 500000, by = 100000)
+)
+
+size_breaks <- c(1, 10, 100, 1000, 10000, 100000, 300000)
+size_labels <- 
+  function(vals) if_else(vals > 100, str_c(vals / 1000, "k"), str_c(vals, ""))
 
 subnational %>% 
   filter(
     annum == 2016, 
-    Vaccode == "DTP3"
+    Vaccode == "DTP3",
+    !is.na(Admin2)
   ) %>% 
   mutate(
     color = case_when(
@@ -127,35 +130,88 @@ subnational %>%
       Coverage <= 80 ~ "70% to 80%",
       Coverage <= 90 ~ "80% to 90%",
       Coverage <= 95 ~ "90% to 95%",
-      Coverage <= 100 ~ "90% to 100%",
+      Coverage <= 100 ~ "95% to 100%",
       TRUE ~ ">100%"
-    )
+    ),
+    Coverage = if_else(Coverage < 1000, Coverage, 1000),
+    label = if_else(Admin2 %in% labelled, Admin2, "")
   ) %>% 
-  filter(
-    Coverage <= 1000 || Denominator <= 2000
-  ) %>% 
-  ggplot(aes(Coverage, Denominator, size = Denominator, fill = color)) +
-  geom_point(shape = 21, color = "white") +
+  sample_frac() %>% 
+  ggplot() +
+  geom_point(
+    aes(
+      Coverage, 
+      Denominator, 
+      size = Denominator, 
+      fill = color
+    ), 
+    shape = 21, 
+    color = "white", 
+    stroke = 0.25
+  ) +
+  ggrepel::geom_text_repel(
+    aes(
+      Coverage, 
+      Denominator, 
+      label = label
+    ), 
+    point.padding = 0.5, 
+    min.segment.length = 1
+  ) +
   scale_x_continuous(
     trans = "x_trans",
-    breaks = c(seq(0, 100, by = 10), 500, 700, 1000)
+    breaks = x_breaks,
+    labels = x_labs,
+    position = "top"
   ) +
   scale_y_continuous(
     trans = "sqrt",
-    breaks = c(10, 500, 2000, 5000, 10000, 15000, seq(20000, 60000, by = 10000), 80000, 100000, 150000, seq(200000, 500000, by = 100000))
+    breaks = y_breaks,
+    labels = scales::unit_format(unit = "", scale = 1, sep = ""),
+    position = "right",
+    limits = c(10, 500000)
   ) +
   scale_size(
     range = c(1, 10),
-    breaks = c(1, 10, 100, 1000, 10000, 100000, 300000)
-  )
+    breaks = size_breaks,
+    labels = size_labels,
+    guide = guide_legend(
+      title.position = "top", 
+      nrow = 1, 
+      override.aes = list(fill = "black", color = "black")
+    )
+  ) +
+  scale_fill_manual(
+    values = coverage_colors, 
+    guide = guide_legend(title.position = "top", ncol = 1)
+  ) +
+  labs(
+    x = "DTP3 Coverage",
+    y = "Surviving Infants",
+    title = "DTPcv3 Reported Coverage by District",
+    fill = "Coverage",
+    size = "Surviving Infants"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(face = "bold", hjust = 0, margin = margin()),
+    axis.title.y = element_text(face = "bold", hjust = 0),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  ) +
+  coord_cartesian(xlim = c(10, 1000), ylim = c(0, 500000), expand = FALSE, clip = "off")
 ```
+
+```{r}
+knitr::include_graphics("subnat.png")
+```
+
 
 ## Trends in DTP3 by country
-```{r}
-glimpse(weunic)
-```
 
-```{r}
+```{r out.width="100%"}
 countries_of_interest <- c(
   "Pakistan",
   "Syrian Arab Republic",
@@ -178,9 +234,17 @@ data <-
     vaccine == "dtp3", 
     country %in% countries_of_interest
   ) %>% 
-  select(wuenic, year, country)
-
-data 
+  select(wuenic, year, country) %>% 
+  arrange(year, wuenic) %>% 
+  mutate(
+    diff_to_next = lead(wuenic) - wuenic,
+    ynudge = case_when(
+      diff_to_next == 1 ~ -1,
+      diff_to_next == 0 ~ -2,
+      TRUE ~ 0
+    ),
+    ypos = wuenic + ynudge
+  )
 
 data %>% 
   ggplot() +
@@ -192,19 +256,22 @@ data %>%
     ), 
     x = 2010, 
     xend = 2016, 
-    data = spread(data, year, wuenic)
+    data = data %>% 
+      select(country, year, wuenic) %>% 
+      spread(year, wuenic)
   ) +
   geom_text(
     aes(
-      y = wuenic,
+      y = ypos,
       label = wuenic
     ),
     x = 2009.5,
+    fontface = "bold",
     data = filter(data, year == 2010)
   ) +
   geom_text(
     aes(
-      y = wuenic,
+      y = ypos,
       label = country
     ),
     x = 2009,
@@ -213,15 +280,16 @@ data %>%
   ) +
   geom_text(
     aes(
-      y = wuenic,
+      y = ypos,
       label = wuenic
     ),
     x = 2016.5,
-    data = filter(data, year == 2016)
+    data = filter(data, year == 2016),
+    fontface = "bold"
   ) +
   geom_text(
     aes(
-      y = wuenic,
+      y = ypos,
       label = country
     ),
     x = 2017,
@@ -254,6 +322,8 @@ data %>%
   )
 ```
 
-* Nudge y aesthetic
-* Color?
-* X axis to the top
+
+```{r}
+knitr::include_graphics("national.png")
+```
+
