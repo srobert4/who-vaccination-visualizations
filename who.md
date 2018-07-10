@@ -94,12 +94,15 @@ global_regional_coverage %>%
   ggplot() +
   geom_line(aes(year, coverage, color = vaccine), size = 0.8) +
   geom_hline(yintercept = 90, color = "#367cc1", size = 0.8) +
-  geom_text(
+  annotate(
+    geom = "text",
     x = 2008, 
     y = 93, 
     hjust = 0.5, 
     label = "90% Vaccination Target", 
-    color = "#367cc1"
+    color = "#367cc1",
+    size = 3,
+    fontface = "bold"
   ) +
   scale_x_continuous(
     breaks = seq(2000, 2016, by = 2)
@@ -160,6 +163,16 @@ coverage_colors <- c(
   ">100%" = "#876086"
 )
 
+coverage_order <- c(
+  "0 to 60%",
+  "60% to 70%",
+  "70% to 80%",
+  "90% to 95%",
+  "80% to 90%",
+  "95% to 100%",
+  ">100%"
+)
+
 labelled <- c("Dhaka", "Lahore", "Karachi", "São Paulo")
 
 x_breaks <- c(seq(0, 100, by = 10), 400, 700, 1000)
@@ -192,6 +205,7 @@ subnational %>%
       Coverage <= 100 ~ "95% to 100%",
       TRUE ~ ">100%"
     ),
+    color = factor(color, levels = coverage_order, ordered = TRUE),
     Coverage = if_else(Coverage < 1000, Coverage, 1000),
     label = if_else(Admin2 %in% labelled, Admin2, "")
   ) %>% 
@@ -237,12 +251,19 @@ subnational %>%
     guide = guide_legend(
       title.position = "top", 
       nrow = 1, 
-      override.aes = list(fill = "black", color = "black")
+      override.aes = list(fill = "black", color = "black"),
+      label.position = "bottom",
+      label.hjust = 0.5
     )
   ) +
   scale_fill_manual(
     values = coverage_colors, 
-    guide = guide_legend(title.position = "top", ncol = 1)
+    guide = guide_legend(
+      title.position = "top", 
+      ncol = 1,
+      override.aes = list(shape = 22, size = 5),
+      reverse = TRUE
+    )
   ) +
   labs(
     x = "DTP3 Coverage",
@@ -257,6 +278,7 @@ subnational %>%
     axis.title.y = element_text(face = "bold", hjust = 0),
     legend.position = "bottom",
     legend.title = element_text(face = "bold"),
+    legend.justification = "left",
     plot.title = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   ) +
@@ -310,22 +332,40 @@ data <-
       diff_to_next == 0 ~ -2,
       TRUE ~ 0
     ),
-    ypos = wuenic + ynudge
+    ypos = wuenic + ynudge,
   )
+
+with_colors <- 
+  data %>% 
+  filter(year == 2016) %>% 
+  mutate(
+    color = case_when(
+      wuenic < 60 ~ "red",
+      wuenic < 70 ~ "orange",
+      TRUE ~ "yellow"
+    )
+  ) %>% 
+  select(country, color)
+
+data <- 
+  data %>% 
+  left_join(with_colors, by = "country")
 
 data %>% 
   ggplot() +
-  geom_point(aes(year, wuenic)) +
+  geom_point(aes(year, wuenic, color = color)) +
   geom_segment(
     aes(
       y = `2010`,
-      yend = `2016`
+      yend = `2016`,
+      color = color
     ), 
     x = 2010, 
     xend = 2016, 
     data = data %>% 
       select(country, year, wuenic) %>% 
-      spread(year, wuenic)
+      spread(year, wuenic) %>% 
+      left_join(with_colors, by = "country")
   ) +
   geom_text(
     aes(
@@ -368,11 +408,19 @@ data %>%
     limits = c(2000, 2026),
     position = "top"
   ) +
+  scale_color_manual(
+    values = c(
+      "red" = "#d5322f",
+      "orange" = "#f36d4a",
+      "yellow" = "#fbad68"
+    )
+  ) +
   theme_minimal() +
   theme(
     panel.grid = element_blank(),
     axis.text.y = element_blank(),
     axis.text.x = element_text(
+      color = "black",
       size = 16,
       face = "bold"
     ),
@@ -380,7 +428,8 @@ data %>%
       size = 16,
       face = "bold",
       hjust = 0.5
-    )
+    ),
+    legend.position = "none"
   ) +
   labs(
     x = NULL,
@@ -389,7 +438,7 @@ data %>%
   )
 ```
 
-![](who_files/figure-markdown_github/unnamed-chunk-8-1.png)
+<img src="who_files/figure-markdown_github/unnamed-chunk-8-1.png" width="100%" />
 
 ``` r
 knitr::include_graphics("national.png")
