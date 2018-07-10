@@ -223,7 +223,12 @@ subnational %>%
     plot.title = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   ) +
-  coord_cartesian(xlim = c(10, 1000), ylim = c(0, 500000), expand = FALSE, clip = "off")
+  coord_cartesian(
+    xlim = c(10, 1000), 
+    ylim = c(0, 500000), 
+    expand = FALSE, 
+    clip = "off"
+  )
 ```
 
 ```{r}
